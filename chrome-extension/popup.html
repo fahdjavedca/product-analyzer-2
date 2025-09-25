@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      width: 350px;
+      padding: 20px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .logo {
+      font-size: 24px;
+      font-weight: bold;
+      color: #2563eb;
+      margin-bottom: 5px;
+    }
+    .subtitle {
+      color: #6b7280;
+      font-size: 14px;
+    }
+    .status {
+      padding: 10px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      font-size: 14px;
+    }
+    .status.active {
+      background-color: #d1fae5;
+      color: #065f46;
+      border: 1px solid #a7f3d0;
+    }
+    .status.inactive {
+      background-color: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fde68a;
+    }
+    .settings {
+      margin-bottom: 15px;
+    }
+    .setting-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .setting-item:last-child {
+      border-bottom: none;
+    }
+    .toggle {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      background-color: #d1d5db;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    .toggle.active {
+      background-color: #2563eb;
+    }
+    .toggle-slider {
+      position: absolute;
+      top: 2px;
+      left: 2px;
+      width: 20px;
+      height: 20px;
+      background-color: white;
+      border-radius: 50%;
+      transition: transform 0.3s;
+    }
+    .toggle.active .toggle-slider {
+      transform: translateX(20px);
+    }
+    .stats {
+      background-color: #f9fafb;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+    }
+    .stat-item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .stat-item:last-child {
+      margin-bottom: 0;
+    }
+    .stat-label {
+      color: #6b7280;
+      font-size: 14px;
+    }
+    .stat-value {
+      font-weight: 600;
+      color: #111827;
+    }
+    .button {
+      width: 100%;
+      padding: 10px;
+      background-color: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background-color 0.2s;
+    }
+    .button:hover {
+      background-color: #1d4ed8;
+    }
+    .button:disabled {
+      background-color: #9ca3af;
+      cursor: not-allowed;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">CJ Analyzer</div>
+    <div class="subtitle">Product Opportunity Scanner</div>
+  </div>
+
+  <div id="status" class="status inactive">
+    Extension is inactive on this page
+  </div>
+
+  <div class="settings">
+    <div class="setting-item">
+              <span>Auto-analyze products (disabled by default)</span>
+              <div class="toggle" id="autoAnalyze">
+                <div class="toggle-slider"></div>
+              </div>
+    </div>
+    <div class="setting-item">
+      <span>Show opportunity scores</span>
+      <div class="toggle active" id="showScores">
+        <div class="toggle-slider"></div>
+      </div>
+    </div>
+    <div class="setting-item">
+      <span>Highlight high-opportunity</span>
+      <div class="toggle active" id="highlightHigh">
+        <div class="toggle-slider"></div>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="stats" id="stats" style="display: none;">
+    <div class="stat-item">
+      <span class="stat-label">Products analyzed:</span>
+      <span class="stat-value" id="analyzedCount">0</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">High opportunity:</span>
+      <span class="stat-value" id="highOppCount">0</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Avg opportunity score:</span>
+      <span class="stat-value" id="avgScore">0</span>
+    </div>
+  </div>
+
+  <button id="analyzeBtn" class="button" disabled>
+    Analyze Products on Page
+  </button>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,360 @@
+/* CSS for CJ Dropshipping Product Analyzer Chrome Extension */
+
+.cj-analyzer-overlay {
+  position: relative;
+  width: 100%;
+  margin-top: 8px;
+  z-index: 1000;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 12px;
+  line-height: 1.4;
+  pointer-events: auto;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.95));
+  color: white;
+  padding: 12px;
+  border-radius: 8px;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* New overlay structure styles */
+.cj-analyzer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.cj-analyzer-country {
+  font-size: 11px;
+  font-weight: 600;
+  color: #60a5fa;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cj-analyzer-competition {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.cj-analyzer-validation {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 4px 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  border-left: 3px solid #3b82f6;
+}
+
+.validation-icon {
+  font-size: 12px;
+}
+
+.validation-text {
+  font-size: 10px;
+  font-weight: 500;
+  color: #e2e8f0;
+}
+
+.cj-analyzer-keywords {
+  margin-bottom: 8px;
+}
+
+.keywords-label {
+  font-size: 10px;
+  color: #94a3b8;
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+
+.cj-analyzer-keywords .keyword {
+  display: inline-block;
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 500;
+  margin: 2px 4px 2px 0;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+/* New styles for individual keyword items */
+.keyword-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  margin: 2px 0;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  border-left: 3px solid #3b82f6;
+}
+
+.keyword-item .keyword {
+  flex: 1;
+  background: none;
+  color: #e2e8f0;
+  padding: 0;
+  margin: 0;
+  border: none;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.keyword-volume {
+  font-size: 10px;
+  font-weight: 600;
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin: 0 6px;
+}
+
+.keyword-competition {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 4px;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+
+.keyword-competition.low {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.keyword-competition.medium {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.keyword-competition.high {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.keyword-competition.unknown {
+  color: #6b7280;
+  background: rgba(107, 114, 128, 0.1);
+}
+
+.cj-analyzer-metrics {
+  margin-bottom: 8px;
+}
+
+.cj-analyzer-metrics .metric {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.metric-label {
+  font-size: 10px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+.metric-value {
+  font-weight: 600;
+  font-size: 11px;
+}
+
+.metric-value.searches {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.metric-value.cpc {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.cj-analyzer-recommendation {
+  font-size: 10px;
+  color: #e2e8f0;
+  font-style: italic;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  border-left: 3px solid #3b82f6;
+}
+
+/* Legacy badge styles (keeping for compatibility) */
+.cj-analyzer-badge {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 6px;
+  color: white;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  margin-bottom: 4px;
+  min-width: 50px;
+}
+
+.cj-analyzer-badge.high-opportunity {
+  background: linear-gradient(135deg, #10b981, #059669);
+}
+
+.cj-analyzer-badge.medium-opportunity {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.cj-analyzer-badge.low-opportunity {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+}
+
+.cj-analyzer-badge .score {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.cj-analyzer-badge .label {
+  font-size: 10px;
+  opacity: 0.9;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.cj-analyzer-details {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+  border-radius: 6px;
+  padding: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  max-width: 200px;
+  font-size: 11px;
+  color: #374151;
+}
+
+.cj-analyzer-details .keyword {
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 4px;
+  padding: 2px 4px;
+  background: #f3f4f6;
+  border-radius: 3px;
+  text-align: center;
+}
+
+.cj-analyzer-details .metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 4px;
+  font-size: 10px;
+  color: #6b7280;
+}
+
+.cj-analyzer-details .metrics span {
+  display: flex;
+  justify-content: space-between;
+}
+
+.cj-analyzer-details .recommendation {
+  font-weight: 500;
+  color: #059669;
+  text-align: center;
+  padding: 2px 4px;
+  background: #d1fae5;
+  border-radius: 3px;
+  font-size: 10px;
+}
+
+/* Hover effects */
+.cj-analyzer-overlay:hover {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(30, 41, 59, 0.98));
+  transform: translateY(-2px);
+  box-shadow: 0 6px 25px rgba(0, 0, 0, 0.4);
+  transition: all 0.3s ease;
+}
+
+/* Animation for new overlays */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.cj-analyzer-overlay {
+  animation: slideIn 0.3s ease-out;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .cj-analyzer-overlay {
+    top: 4px;
+    right: 4px;
+    font-size: 11px;
+  }
+  
+  .cj-analyzer-badge {
+    padding: 4px 6px;
+    min-width: 40px;
+  }
+  
+  .cj-analyzer-badge .score {
+    font-size: 14px;
+  }
+  
+  .cj-analyzer-details {
+    max-width: 150px;
+    padding: 6px;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .cj-analyzer-badge {
+    border: 2px solid white;
+  }
+  
+  .cj-analyzer-details {
+    border: 2px solid #374151;
+  }
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .cj-analyzer-details {
+    background: rgba(31, 41, 55, 0.95);
+    color: #f9fafb;
+    border-color: rgba(75, 85, 99, 0.3);
+  }
+  
+  .cj-analyzer-details .keyword {
+    background: #374151;
+    color: #f9fafb;
+  }
+  
+  .cj-analyzer-details .recommendation {
+    background: #064e3b;
+    color: #a7f3d0;
+  }
+}
+

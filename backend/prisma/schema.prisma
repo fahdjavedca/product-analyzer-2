@@ -1,0 +1,166 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id              String    @id @default(uuid()) @db.Uuid
+  sourcePlatform  String    @map("source_platform") @db.Text
+  sourceProductId String    @map("source_product_id") @db.Text
+  title           String    @db.Text
+  handle          String?   @unique @db.Text
+  descriptionRaw  String?   @map("description_raw") @db.Text
+  price           Decimal   @db.Decimal(10, 2)
+  currency        String    @default("USD") @db.Text
+  vendorName      String?   @map("vendor_name") @db.Text
+  categoryPath    String[]  @map("category_path") @db.Text
+  images          Json      @default("[]")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  shippingOptions ShippingOption[]
+  keywordSets     KeywordSet[]
+  productScores   ProductScore?
+  shopifyPages    ShopifyPage[]
+  campaigns       Campaign[]
+
+  @@unique([sourcePlatform, sourceProductId])
+  @@map("products")
+}
+
+model ShippingOption {
+  id                String   @id @default(uuid()) @db.Uuid
+  productId         String   @map("product_id") @db.Uuid
+  destinationCountry String  @map("destination_country") @db.Text
+  isShippable       Boolean  @default(false) @map("is_shippable")
+  shippingCost      Decimal? @map("shipping_cost") @db.Decimal(10, 2)
+  etaMinDays        Int?     @map("eta_min_days")
+  etaMaxDays        Int?     @map("eta_max_days")
+  methodName        String?  @map("method_name") @db.Text
+  snapshotTs        DateTime @default(now()) @map("snapshot_ts") @db.Timestamptz
+
+  // Relations
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, destinationCountry, methodName])
+  @@map("shipping_options")
+}
+
+model KeywordSet {
+  id        String   @id @default(uuid()) @db.Uuid
+  productId String   @map("product_id") @db.Uuid
+  country   String   @db.Text
+  language  String   @default("en") @db.Text
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  // Relations
+  product        Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  keywords       Keyword[]
+  productScores  ProductScore[]
+  campaigns      Campaign[]
+
+  @@map("keyword_sets")
+}
+
+model Keyword {
+  id                  String   @id @default(uuid()) @db.Uuid
+  keywordSetId        String   @map("keyword_set_id") @db.Uuid
+  term                String   @db.Text
+  avgMonthlySearches  Int?
+  competition         Decimal? @db.Decimal(3, 2)
+  cpcLow              Decimal? @map("cpc_low") @db.Decimal(10, 2)
+  cpcHigh             Decimal? @map("cpc_high") @db.Decimal(10, 2)
+  score               Decimal? @db.Decimal(10, 4)
+
+  // Relations
+  keywordSet KeywordSet @relation(fields: [keywordSetId], references: [id], onDelete: Cascade)
+
+  @@unique([keywordSetId, term])
+  @@map("keywords")
+}
+
+model ProductScore {
+  productId     String    @id @map("product_id") @db.Uuid
+  keywordSetId  String?   @map("keyword_set_id") @db.Uuid
+  oppScore      Decimal   @map("opp_score") @db.Decimal(10, 4)
+  reason        String?   @db.Text
+  updatedAt     DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  keywordSet KeywordSet? @relation(fields: [keywordSetId], references: [id], onDelete: SetNull)
+
+  @@map("product_scores")
+}
+
+model ShopifyPage {
+  id               String   @id @default(uuid()) @db.Uuid
+  productId        String   @map("product_id") @db.Uuid
+  shopifyProductId String?  @unique @map("shopify_product_id") @db.Text
+  url              String?  @db.Text
+  status           String   @default("pending") @db.Text
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@map("shopify_pages")
+}
+
+model Campaign {
+  id                String   @id @default(uuid()) @db.Uuid
+  productId         String   @map("product_id") @db.Uuid
+  keywordSetId      String   @map("keyword_set_id") @db.Uuid
+  googleCampaignId  String?  @unique @map("google_campaign_id") @db.Text
+  strategy          String   @db.Text
+  dailyBudgetMicro  BigInt   @map("daily_budget_micro")
+  country           String   @db.Text
+  status            String   @default("pending") @db.Text
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  product    Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  keywordSet KeywordSet  @relation(fields: [keywordSetId], references: [id], onDelete: Cascade)
+
+  @@map("campaigns")
+}
+
+model User {
+  id         String   @id @default(uuid()) @db.Uuid
+  email      String   @unique @db.Text
+  providerId String   @map("provider_id") @db.Text
+  role       String   @default("user") @db.Text
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  settings Settings[]
+
+  @@map("users")
+}
+
+model Settings {
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @unique @map("user_id") @db.Uuid
+  defaultCountry    String   @default("US") @map("default_country") @db.Text
+  language          String   @default("en") @db.Text
+  biddingStrategy   String   @default("MAXIMIZE_CLICKS") @map("bidding_strategy") @db.Text
+  dailyBudgetMicro  BigInt   @default(1000000) @map("daily_budget_micro")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("settings")
+}

@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "CJ Dropshipping Product Analyzer",
+  "version": "1.0.0",
+  "description": "Overlay Google Ads keyword data and opportunity scores on CJ Dropshipping products",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://www.cjdropshipping.com/*",
+    "https://developers.cjdropshipping.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.cjdropshipping.com/*"],
+      "js": ["google-ads-service.js", "content.js"],
+      "css": ["content.css"],
+      "run_at": "document_end"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "CJ Product Analyzer"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["injected.js"],
+      "matches": ["https://www.cjdropshipping.com/*"]
+    }
+  ]
+}

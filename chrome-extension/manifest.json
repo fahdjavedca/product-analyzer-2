@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "CJ Dropshipping Product Analyzer",
-  "version": "1.0.0",
-  "description": "Overlay Google Ads keyword data and opportunity scores on CJ Dropshipping products",
+  "name": "Product Analyzer - CJ Dropshipping & AliExpress",
+  "version": "1.1.0",
+  "description": "Overlay Google Ads keyword data and opportunity scores on CJ Dropshipping and AliExpress products",
   "permissions": [
     "activeTab",
     "storage",
@@ -10,14 +10,22 @@
   ],
   "host_permissions": [
     "https://www.cjdropshipping.com/*",
-    "https://developers.cjdropshipping.com/*"
+    "https://developers.cjdropshipping.com/*",
+    "https://www.aliexpress.com/*",
+    "https://aliexpress.com/*",
+    "https://*.aliexpress.com/*"
   ],
   "background": {
     "service_worker": "background.js"
   },
   "content_scripts": [
     {
-      "matches": ["https://www.cjdropshipping.com/*"],
+      "matches": [
+        "https://www.cjdropshipping.com/*",
+        "https://www.aliexpress.com/*",
+        "https://aliexpress.com/*",
+        "https://*.aliexpress.com/*"
+      ],
       "js": ["google-ads-service.js", "content.js"],
       "css": ["content.css"],
       "run_at": "document_end"
@@ -25,12 +33,17 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "CJ Product Analyzer"
+    "default_title": "Product Analyzer"
   },
   "web_accessible_resources": [
     {
       "resources": ["injected.js"],
-      "matches": ["https://www.cjdropshipping.com/*"]
+      "matches": [
+        "https://www.cjdropshipping.com/*",
+        "https://www.aliexpress.com/*",
+        "https://aliexpress.com/*",
+        "https://*.aliexpress.com/*"
+      ]
     }
   ]
 }

@@ -1,4 +1,4 @@
-// Content script for CJ Dropshipping Product Analyzer Chrome Extension
+// Content script for CJ Dropshipping & AliExpress Product Analyzer Chrome Extension
 
 console.log('CJ Product Analyzer content script loaded');
 
@@ -70,6 +70,142 @@ let productOverlays = new Map();
 let mutationObserver = null;
 let autoAnalyzeEnabled = true; // Auto-analyze new products from infinite scroll
 
+// Detect current website and return appropriate product selectors
+function getProductSelectors() {
+  const hostname = window.location.hostname.toLowerCase();
+  
+  if (hostname.includes('aliexpress')) {
+    return [
+      // AliExpress product selectors
+      '.list--gallery--C2f2tvm',
+      '.item--wrap--1GrE7wR',
+      '.item--container--3HI9d1W',
+      '.gallery-offer-item',
+      '.product-item',
+      '.item-container',
+      '[data-product-id]',
+      '.list-item',
+      // AliExpress search result items
+      '.search-item-card-wrapper-gallery',
+      '.search-card-item',
+      '.product-snippet',
+      // Generic AliExpress selectors
+      'div[data-product-id]',
+      'a[href*="/item/"]'
+    ];
+  } else if (hostname.includes('cjdropshipping')) {
+    return [
+      // CJ Dropshipping selectors
+      '.product-card',
+      '[data-product-id]',
+      '.product-item',
+      '.goods-item',
+      '.product-list-item',
+      '.product-box',
+      '.item-box',
+      '.el-card',
+      '.el-card__body',
+      '.product-list .item',
+      '.goods-list .item'
+    ];
+  } else {
+    // Generic fallback selectors
+    return [
+      '.product-card',
+      '[data-product-id]',
+      '.product-item',
+      '.goods-item',
+      '.product-list-item'
+    ];
+  }
+}
+
+// Detect current website type
+function getCurrentWebsite() {
+  const hostname = window.location.hostname.toLowerCase();
+  if (hostname.includes('aliexpress')) return 'aliexpress';
+  if (hostname.includes('cjdropshipping')) return 'cjdropshipping';
+  return 'unknown';
+}
+
+// Safe base64 encoding that handles non-Latin characters
+function safeBase64Encode(str) {
+  try {
+    // First try regular btoa
+    return btoa(str);
+  } catch (error) {
+    // If btoa fails with non-Latin characters, use a fallback
+    try {
+      // Convert to UTF-8 bytes first, then encode
+      return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(match, p1) {
+        return String.fromCharCode('0x' + p1);
+      }));
+    } catch (error2) {
+      // Ultimate fallback: create a simple hash
+      let hash = 0;
+      for (let i = 0; i < str.length; i++) {
+        const char = str.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // Convert to 32-bit integer
+      }
+      return Math.abs(hash).toString(36);
+    }
+  }
+}
+
+// Clean product title for better keyword generation [[memory:7575498]]
+function cleanProductTitle(title) {
+  if (!title) return '';
+  
+  let cleaned = title;
+  
+  // Remove common promotional text and fluff
+  const removePatterns = [
+    // Remove repeated "DSers" text that appears in AliExpress titles
+    /DSers\s*/gi,
+    // Remove promotional text
+    /\b(hot|new|best|top|quality|premium|sale|discount|free shipping|fast delivery)\b/gi,
+    /\b(dropshipping|wholesale|retail|factory|supplier)\b/gi,
+    /\b(2024|2023|2025|latest|newest|updated)\b/gi,
+    /\b(piece|pieces|pcs|set|pack|lot)\s*\d*/gi,
+    /\d+\s*(piece|pieces|pcs|set|pack|lot)\b/gi,
+    /\b(color|colors|size|sizes):\s*\w+/gi,
+    // Remove pricing and promotional info
+    /C\$[\d,]+\.?\d*(?:-C\$[\d,]+\.?\d*)?/g, // Canadian dollar prices
+    /\$[\d,]+\.?\d*(?:-\$[\d,]+\.?\d*)?/g, // Dollar prices
+    /\d+\s*(sold|reviews|stars)/gi, // Sales numbers and reviews
+    /\b(see preview|similar items|add to|save|extra|off with|coins|shoppers)\b/gi,
+    // Remove UI elements and buttons
+    /@keyframes[^}]*}/g, // CSS animations
+    /icon\s*\/[^}]*}/g, // Icon references
+    /ALLFree/g, // UI elements
+    /备份/g, // Chinese characters for "backup"
+    /\([^)]*\)/g, // Remove content in parentheses
+    /\[[^\]]*\]/g, // Remove content in square brackets
+    /\s+/g // Normalize spaces
+  ];
+  
+  removePatterns.forEach(pattern => {
+    cleaned = cleaned.replace(pattern, ' ');
+  });
+  
+  // Clean up extra whitespace and trim
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
+  
+  // Extract core product keywords (first meaningful words, usually 2-4 words)
+  const words = cleaned.split(' ').filter(word => 
+    word.length > 2 && 
+    !/^\d+$/.test(word) && // Not just numbers
+    !/^[^\w]+$/.test(word) // Not just punctuation
+  );
+  
+  // Take first 3-5 meaningful words as the core product description
+  const coreProduct = words.slice(0, Math.min(5, words.length)).join(' ');
+  
+  console.log(`🎯 Title cleaning: "${title}" → "${coreProduct}"`);
+  return coreProduct || title; // Fallback to original if cleaning failed
+}
+
 // Setup mutation observer to detect new products from infinite scroll
 function setupInfiniteScrollObserver() {
   if (mutationObserver) {
@@ -84,13 +220,7 @@ function setupInfiniteScrollObserver() {
         mutation.addedNodes.forEach((node) => {
           if (node.nodeType === Node.ELEMENT_NODE) {
             // Check if the added node contains product elements
-            const productSelectors = [
-              '.product-card',
-              '[data-product-id]',
-              '.product-item',
-              '.goods-item',
-              '.product-list-item'
-            ];
+            const productSelectors = getProductSelectors();
             
             let hasNewProducts = false;
             productSelectors.forEach(selector => {
@@ -147,13 +277,7 @@ async function analyzeNewProducts() {
   console.log('🔍 Checking for new products to analyze...');
   
   // Get all current product elements
-  const productSelectors = [
-    '.product-card',
-    '[data-product-id]',
-    '.product-item',
-    '.goods-item',
-    '.product-list-item'
-  ];
+  const productSelectors = getProductSelectors();
   
   let allProductElements = [];
   productSelectors.forEach(selector => {
@@ -233,7 +357,11 @@ function getProductId(element) {
 
 // Initialize the extension
 function init() {
-  console.log('Initializing CJ Product Analyzer');
+  const website = getCurrentWebsite();
+  const websiteName = website === 'aliexpress' ? 'AliExpress' : 
+                     website === 'cjdropshipping' ? 'CJ Dropshipping' : 'Unknown';
+  
+  console.log(`Initializing Product Analyzer for ${websiteName}`);
   
   // Add a visible indicator that the extension is loaded
   const indicator = document.createElement('div');
@@ -252,7 +380,7 @@ function init() {
     z-index: 10000;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   `;
-  indicator.textContent = 'CJ Analyzer: Ready';
+  indicator.textContent = `Product Analyzer: Ready (${websiteName})`;
   document.body.appendChild(indicator);
   
   // Add a manual trigger button
@@ -403,30 +531,8 @@ async function analyzeProductsOnPage() {
   // Clear any existing overlays
   clearAllOverlays();
   
-  // More comprehensive selectors for CJ Dropshipping
-  const productSelectors = [
-    // Common CJ Dropshipping selectors
-    '.product-item',
-    '.product-card', 
-    '.item-card',
-    '.product-list-item',
-    '.goods-item',
-    '.product-box',
-    '.item-box',
-    // CJ Dropshipping specific selectors
-    '.el-card',
-    '.el-card__body',
-    '.product-list .item',
-    '.goods-list .item',
-    // Look for elements with product-like structure
-    'div[class*="product"]:has(img)',
-    'div[class*="item"]:has(img)',
-    'div[class*="goods"]:has(img)',
-    'div[class*="card"]:has(img)',
-    'div[class*="box"]:has(img)',
-    // Generic fallback - look for any div with image and reasonable size
-    'div:has(img)'
-  ];
+  // Get website-specific selectors
+  const productSelectors = getProductSelectors();
   
   let productElements = [];
   for (const selector of productSelectors) {
@@ -487,7 +593,7 @@ async function analyzeProductsOnPage() {
     
     // Test if backend is reachable
     try {
-      const testResponse = await fetch('http://localhost:3000/api/health');
+      const testResponse = await fetch('http://localhost:8080/api/health');
       if (testResponse.ok) {
         const testData = await testResponse.json();
         console.log('🔧 Backend response:', testData);
@@ -501,7 +607,7 @@ async function analyzeProductsOnPage() {
         return;
       }
     } catch (backendError) {
-      console.log('🚫 Cannot reach backend at localhost:3000:', backendError.message);
+      console.log('🚫 Cannot reach backend at localhost:8080:', backendError.message);
       showStatus('❌ Backend not reachable - no analysis possible', 'error');
       return;
     }
@@ -615,54 +721,155 @@ async function analyzeProductsOnPage() {
 // Extract product data from DOM element
 function extractProductData(element) {
   try {
-    // Try to find product title with more comprehensive selectors
-    const titleSelectors = [
-      '.product-title',
-      '.item-title', 
-      '.goods-title',
-      '.el-card__body h3',
-      '.el-card__body h4',
-      '.el-card__body .title',
-      '.el-card__body .name',
-      'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-      '[class*="title"]',
-      '[class*="name"]',
-      'a[title]',
-      'a[href*="product"]',
-      'a[href*="item"]',
+    const website = getCurrentWebsite();
+    
+    // Get website-specific title selectors
+    let titleSelectors = [];
+    if (website === 'aliexpress') {
+      titleSelectors = [
+        // AliExpress specific title selectors (updated for current version)
+        '.item--title--3s6v33t',
+        '.multi--title--G7dOCj3',
+        '.title--wrap--Ms9Zq4d',
+        '.item-title',
+        '.product-title',
+        '.title-link',
+        // Common AliExpress link patterns
+        'a[href*="/item/"]',
+        'a[href*="aliexpress.com/item"]',
+        // Header tags within the product
+        'h1', 'h2', 'h3', 'h4',
+        'h1 a', 'h2 a', 'h3 a', 'h4 a',
+        // Title attributes and data attributes
+        '[data-pl="product-title"]',
+        '[title]:not([title=""])',
+        'a[title]:not([title=""])',
+        'span[title]:not([title=""])',
+        'div[title]:not([title=""])',
+        // Look for any meaningful text in links
+        'a:not([class*="price"]):not([class*="button"])',
+        // Text content in common containers
+        '.title',
+        '.name',
+        '[class*="title"]',
+        '[class*="name"]'
+      ];
+    } else if (website === 'cjdropshipping') {
+      titleSelectors = [
+        '.product-title',
+        '.item-title', 
+        '.goods-title',
+        '.el-card__body h3',
+        '.el-card__body h4',
+        '.el-card__body .title',
+        '.el-card__body .name',
+        'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        '[class*="title"]',
+        '[class*="name"]',
+        'a[title]',
+        'a[href*="product"]',
+        'a[href*="item"]'
+      ];
+    } else {
+      // Generic selectors
+      titleSelectors = [
+        '.product-title',
+        '.item-title',
+        'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        '[class*="title"]',
+        'a[title]'
+      ];
+    }
+    
+    // Add fallback selectors for all websites
+    titleSelectors = titleSelectors.concat([
       // Look for any text that might be a title
       'span:not([class*="price"]):not([class*="cost"]):not([class*="tag"])',
       'div:not([class*="price"]):not([class*="cost"]):not([class*="tag"])'
-    ];
+    ]);
     
     let title = '';
     for (const selector of titleSelectors) {
       const titleEl = element.querySelector(selector);
       if (titleEl) {
-        const text = titleEl.textContent?.trim() || titleEl.getAttribute('title') || '';
-        // Filter out very short text or text that looks like prices
-        if (text && text.length > 5 && !/^\$[\d,]+\.?\d*$/.test(text) && !/^Lists?:?\s*\d+$/.test(text)) {
+        // Try multiple ways to get the title text
+        let text = titleEl.getAttribute('title') || // Prefer title attribute first (usually cleaner)
+                  titleEl.getAttribute('alt') || 
+                  titleEl.textContent?.trim() || 
+                  titleEl.innerText?.trim() || '';
+        
+        // Clean up the text and remove obvious junk
+        text = text.replace(/\s+/g, ' ').trim();
+        
+        // For AliExpress, if text is too long and contains UI elements, try to extract just the product name
+        if (text.length > 200 && text.includes('C$') && text.includes('sold')) {
+          // Try to extract just the product title before pricing info
+          const cleanMatch = text.match(/^([^C$]+?)(?:\s+C\$|$)/);
+          if (cleanMatch && cleanMatch[1] && cleanMatch[1].length > 10) {
+            text = cleanMatch[1].trim();
+          }
+        }
+        
+        // Filter out very short text, prices, and common non-product text
+        const isValidTitle = text && 
+                           text.length > 5 && 
+                           !/^\$[\d,]+\.?\d*$/.test(text) && 
+                           !/^Lists?:?\s*\d+$/.test(text) &&
+                           !/^(free|shipping|sold|new|hot|sale)$/i.test(text) &&
+                           !/^\d+\s*(pieces?|pcs?|items?)$/i.test(text) &&
+                           !text.match(/^[\d\s\-\$€£¥₹]+$/); // Not just numbers and currency symbols
+        
+        if (isValidTitle) {
           title = text;
+          console.log(`✅ Found title with selector "${selector}": "${title}"`);
           break;
+        } else if (text) {
+          console.log(`❌ Rejected title with selector "${selector}": "${text}" (length: ${text.length})`);
         }
       }
     }
     
     // If no title found, try to get any meaningful text from the element
     if (!title) {
-      const allText = element.textContent?.trim() || '';
-      const lines = allText.split('\n').map(line => line.trim()).filter(line => line.length > 5);
-      title = lines[0] || '';
+      console.log('🔍 No title found with selectors, trying fallback methods...');
       
-      // If still no title, try to get text from any child element
+      // Method 1: Find the longest meaningful text line
+      const allText = element.textContent?.trim() || '';
+      const lines = allText.split(/[\n\r]+/).map(line => line.trim()).filter(line => {
+        return line.length > 10 && 
+               !line.match(/^\$[\d,]+/) && 
+               !line.match(/^\d+\s*(sold|pieces|reviews)/i) &&
+               !line.match(/^(free|shipping|delivery|add to|save|discount)/i);
+      });
+      
+      if (lines.length > 0) {
+        // Take the longest line as it's likely the product title
+        title = lines.reduce((longest, current) => current.length > longest.length ? current : longest, '');
+        console.log(`📝 Found title from text lines: "${title}"`);
+      }
+      
+      // Method 2: Look for text in specific child elements
       if (!title) {
         const textElements = element.querySelectorAll('span, div, p, h1, h2, h3, h4, h5, h6, a');
+        let bestCandidate = '';
+        
         for (const textEl of textElements) {
           const text = textEl.textContent?.trim();
-          if (text && text.length > 5 && !text.includes('$') && !text.includes('USD') && !text.includes('CAD')) {
-            title = text;
-            break;
+          if (text && text.length > 10 && text.length < 200) {
+            // Score based on length and content quality
+            const hasPrice = /[\$€£¥₹]/.test(text);
+            const hasNumbers = /\d/.test(text);
+            const hasGoodWords = /[a-zA-Z]{3,}/.test(text);
+            
+            if (!hasPrice && hasGoodWords && text.length > bestCandidate.length) {
+              bestCandidate = text;
+            }
           }
+        }
+        
+        if (bestCandidate) {
+          title = bestCandidate;
+          console.log(`📝 Found title from child elements: "${title}"`);
         }
       }
     }
@@ -673,16 +880,44 @@ function extractProductData(element) {
       return null;
     }
     
-    // Try to find price with more comprehensive selectors
-    const priceSelectors = [
-      '.price',
-      '.product-price',
-      '.item-price',
-      '.goods-price',
-      '[class*="price"]',
-      '[class*="cost"]',
-      '[class*="amount"]'
-    ];
+    // Get website-specific price selectors
+    let priceSelectors = [];
+    if (website === 'aliexpress') {
+      priceSelectors = [
+        // AliExpress specific price selectors
+        '.multi--price-sale--U-S0jtj',
+        '.price--current--1zTZkNI',
+        '.price-current',
+        '.price-sale',
+        '.notranslate',
+        '.multi--price-original--1zTZkNI',
+        '.price--original--1zTZkNI',
+        '[data-pl="product-price"]',
+        '.price-range',
+        // Generic price selectors for AliExpress
+        '[class*="price"]',
+        '[class*="cost"]',
+        'span[data-spm-anchor-id*="price"]'
+      ];
+    } else if (website === 'cjdropshipping') {
+      priceSelectors = [
+        '.price',
+        '.product-price',
+        '.item-price',
+        '.goods-price',
+        '[class*="price"]',
+        '[class*="cost"]',
+        '[class*="amount"]'
+      ];
+    } else {
+      // Generic selectors
+      priceSelectors = [
+        '.price',
+        '.product-price',
+        '[class*="price"]',
+        '[class*="cost"]'
+      ];
+    }
     
     let price = '';
     for (const selector of priceSelectors) {
@@ -693,18 +928,58 @@ function extractProductData(element) {
       }
     }
     
-    // If no price found, try to extract from text content
+    // If no price found, try to extract from text content with multiple currency formats
     if (!price) {
-      const priceMatch = element.textContent?.match(/\$[\d,]+\.?\d*(?:-\$[\d,]+\.?\d*)?/);
-      if (priceMatch) {
-        price = priceMatch[0];
+      // Try different currency patterns (USD, CAD, EUR, etc.)
+      const pricePatterns = [
+        /\$[\d,]+\.?\d*(?:-\$[\d,]+\.?\d*)?/, // USD/CAD format: $12.99 or $10.99-$15.99
+        /US\s*\$\s*[\d,]+\.?\d*(?:-US\s*\$\s*[\d,]+\.?\d*)?/, // US $12.99
+        /C\$[\d,]+\.?\d*(?:-C\$[\d,]+\.?\d*)?/, // CAD format: C$12.99
+        /CAD\s*[\d,]+\.?\d*(?:-CAD\s*[\d,]+\.?\d*)?/, // CAD 12.99
+        /€[\d,]+\.?\d*(?:-€[\d,]+\.?\d*)?/, // EUR format: €12.99
+        /£[\d,]+\.?\d*(?:-£[\d,]+\.?\d*)?/, // GBP format: £12.99
+        /[\d,]+\.?\d*\s*-\s*[\d,]+\.?\d*/, // Range without currency: 12.99 - 15.99
+        /[\d,]+\.?\d*/ // Just numbers: 12.99
+      ];
+      
+      for (const pattern of pricePatterns) {
+        const priceMatch = element.textContent?.match(pattern);
+        if (priceMatch) {
+          price = priceMatch[0];
+          break;
+        }
       }
     }
     
-    // Generate unique ID based on title and position
-    const id = btoa(title + element.offsetTop + element.offsetLeft).substring(0, 16);
+    // Generate unique ID based on title and position (safe encoding for non-Latin characters)
+    const id = safeBase64Encode(title + element.offsetTop + element.offsetLeft).substring(0, 16);
     
-    console.log(`Extracted product: "${title}" - Price: "${price}"`);
+    console.log(`✅ Extracted product from ${website}:`, {
+      title: `"${title}"`,
+      price: `"${price}"`,
+      titleLength: title.length,
+      elementTag: element.tagName,
+      elementClass: element.className
+    });
+    
+    // Additional debugging for AliExpress
+    if (website === 'aliexpress' && (!title || title.length < 10)) {
+      console.log('🔍 AliExpress title extraction debug:');
+      console.log('Element HTML preview:', element.outerHTML.substring(0, 500));
+      console.log('Element text content:', element.textContent?.substring(0, 200));
+      
+      // Try to find any link with meaningful text
+      const links = element.querySelectorAll('a');
+      links.forEach((link, i) => {
+        if (link.textContent && link.textContent.length > 10) {
+          console.log(`Link ${i}:`, {
+            text: link.textContent.substring(0, 100),
+            href: link.href?.substring(0, 100),
+            title: link.title
+          });
+        }
+      });
+    }
     
     return {
       id,
@@ -753,18 +1028,30 @@ async function analyzeProduct(elementOrData) {
     analyzedProducts.add(productId);
   }
   try {
-    console.log(`Starting analysis for: ${productData.title}`);
+    console.log(`🚀 Starting analysis for: "${productData.title}"`);
+    
+    // Validate that we have a good title before proceeding
+    if (!productData.title || productData.title.length < 5) {
+      console.error(`❌ Invalid title for analysis: "${productData.title}"`);
+      return null;
+    }
     
     // Generate intelligent keywords using OpenAI
     console.log('🔍 Generating intelligent keywords...');
-    console.log('Product data:', {
-      title: productData.title,
-      price: productData.price,
-      category: productData.categoryPath ? productData.categoryPath.join(' > ') : ''
+    console.log('📊 Product data being sent to keyword generation:', {
+      title: `"${productData.title}"`,
+      titleLength: productData.title.length,
+      price: `"${productData.price}"`,
+      category: productData.categoryPath ? productData.categoryPath.join(' > ') : 'No category',
+      website: getCurrentWebsite()
     });
     
+    // Clean up the title for keyword generation (especially important for AliExpress)
+    const cleanedTitle = cleanProductTitle(productData.title);
+    console.log(`🧹 Cleaned title: "${productData.title}" → "${cleanedTitle}"`);
+    
     const keywordResult = await googleAdsService.generateIntelligentKeywords(
-      productData.title, 
+      cleanedTitle, 
       productData.price, 
       productData.categoryPath ? productData.categoryPath.join(' > ') : ''
     );
@@ -806,6 +1093,10 @@ async function analyzeProduct(elementOrData) {
           }
         } catch (error) {
           console.error(`Error getting data for "${keyword}":`, error);
+          // For backend 500 errors, continue with other keywords instead of failing completely
+          if (error.message.includes('500') || error.message.includes('Internal Server Error')) {
+            console.log(`⚠️ Skipping "${keyword}" due to server error, continuing with other keywords...`);
+          }
         }
         
         // Small delay between API calls to avoid rate limiting
@@ -815,9 +1106,11 @@ async function analyzeProduct(elementOrData) {
       }
       
       if (!hasRealData || keywordDataArray.length === 0) {
-        console.log('No Google Ads data received for any keywords');
+        console.log('❌ No Google Ads data received for any keywords');
         return null;
       }
+      
+      console.log(`✅ Successfully got data for ${keywordDataArray.length}/${keywords.length} keywords`);
       
       console.log(`📊 Total search volume across ${keywordDataArray.length} keywords: ${totalSearchVolume.toLocaleString()}`);
       
@@ -974,7 +1267,7 @@ function addProductOverlay(element, analysis) {
           `<div class="keyword-item">
             <span class="keyword">${data.keyword}</span>
             <span class="keyword-volume">${parseInt(data.avgMonthlySearches).toLocaleString()} searches</span>
-            <span class="keyword-competition ${data.competition.toLowerCase()}">${data.competition}</span>
+            <span class="keyword-competition ${typeof data.competition === 'string' ? data.competition.toLowerCase() : data.competition < 0.3 ? 'low' : data.competition < 0.7 ? 'medium' : 'high'}">${data.competition}</span>
           </div>`
         ).join('') : 
         analysis.keywords.map(k => `<span class="keyword">${k}</span>`).join('')

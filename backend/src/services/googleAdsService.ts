@@ -69,6 +69,7 @@ export class GoogleAdsService {
           },
           includeAdultKeywords: false,
           pageSize: 1000,
+          keywordPlanNetwork: 'GOOGLE_SEARCH', // Match Keyword Planner default
           historicalMetricsOptions: {
             yearMonthRange: {
               start: this.getLastMonthDate(),
@@ -91,9 +92,20 @@ export class GoogleAdsService {
       const data = await response.json() as { results?: any[] };
       const results = data.results || [];
       
+      // Log the raw API response for debugging
+      logger.info('Google Ads API response for keywords:', {
+        requestKeywords: request.keywords,
+        resultCount: results.length,
+        results: results.slice(0, 10).map(r => ({ // Log first 10 results
+          text: r.text,
+          avgMonthlySearches: r.keywordIdeaMetrics?.avgMonthlySearches,
+          competition: r.keywordIdeaMetrics?.competition
+        }))
+      });
+      
       return results.map((result: any) => ({
         keyword: result.text,
-        avgMonthlySearches: result.keywordIdeaMetrics?.avgMonthlySearches || 0,
+        avgMonthlySearches: parseInt(result.keywordIdeaMetrics?.avgMonthlySearches) || 0,
         competition: this.mapCompetitionLevel(result.keywordIdeaMetrics?.competition),
         cpcLow: this.convertMicrosToCurrency(result.keywordIdeaMetrics?.lowTopOfPageBidMicros),
         cpcHigh: this.convertMicrosToCurrency(result.keywordIdeaMetrics?.highTopOfPageBidMicros),

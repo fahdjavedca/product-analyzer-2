@@ -1,5 +1,5 @@
 import { aliexpressService, AliExpressCategory } from './aliexpressService';
-import { googleAdsService } from './googleAdsService';
+import { googleAdsService, KeywordMetrics } from './googleAdsService';
 import { keywordService } from './keywordService';
 import { logger } from '@/config/logger';
 import * as XLSX from 'xlsx';
@@ -52,6 +52,61 @@ export class BulkAnalysisService {
     if (competition >= 0.4) return 'MEDIUM';
     if (competition > 0) return 'LOW';
     return 'UNKNOWN';
+  }
+
+  /**
+   * Filter keywords to only include those relevant to the original search terms
+   */
+  private filterRelevantKeywords(keywordMetrics: KeywordMetrics[], originalKeywords: string[]): KeywordMetrics[] {
+    // Extract core terms from original keywords
+    const coreTerms = new Set<string>();
+    originalKeywords.forEach(keyword => {
+      const words = keyword.toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .split(' ')
+        .filter((word: string) => word.length > 2 && !['for', 'sale', 'buy', 'best', 'the', 'and', 'with'].includes(word));
+      words.forEach((word: string) => coreTerms.add(word));
+    });
+
+    logger.info('Relevance filtering:', {
+      originalKeywords,
+      coreTerms: Array.from(coreTerms),
+      totalKeywords: keywordMetrics.length
+    });
+
+    // Filter keywords that contain at least one core term
+    const filteredKeywords = keywordMetrics.filter(metric => {
+      const keywordWords = metric.keyword.toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .split(' ')
+        .filter(word => word.length > 2);
+      
+      // Check if keyword contains any core terms
+      const isRelevant = keywordWords.some((word: string) => coreTerms.has(word));
+      
+      if (!isRelevant) {
+        logger.debug(`Filtered out irrelevant keyword: ${metric.keyword}`);
+      }
+      
+      return isRelevant;
+    });
+
+    logger.info(`Filtered ${keywordMetrics.length - filteredKeywords.length} irrelevant keywords, ${filteredKeywords.length} remaining`);
+    
+    // If filtering removed all keywords, return top 20 from original results
+    if (filteredKeywords.length === 0) {
+      logger.warn('Relevance filtering removed all keywords, using top 20 from original results');
+      return keywordMetrics.slice(0, 20);
+    }
+    
+    // If filtering left very few keywords, supplement with some from original results
+    if (filteredKeywords.length < 5) {
+      logger.warn(`Only ${filteredKeywords.length} relevant keywords found, supplementing with original results`);
+      const supplementKeywords = keywordMetrics.slice(0, 10 - filteredKeywords.length);
+      return [...filteredKeywords, ...supplementKeywords];
+    }
+    
+    return filteredKeywords;
   }
 
   /**
@@ -465,12 +520,10 @@ export class BulkAnalysisService {
         try {
           const result = await this.analyzeCategory(category, country, language, includeProductTitles);
           
-          // If no keyword analysis was generated (empty array), use demo data
+          // If no keyword analysis was generated (empty array), keep the real API structure but don't replace with demo data
           if (result.keywordAnalysis.length === 0) {
-            logger.warn(`No keyword analysis generated for ${category.subSub}, using demo data`);
-            result.keywordAnalysis = this.getDemoKeywordAnalysis(category.subSub);
-            result.inferredKeywords = this.getDemoKeywords(category.subSub);
-            result.productTitles = this.getDemoProductTitles(category.subSub);
+            logger.warn(`No keyword analysis generated for ${category.subSub}, but keeping real API structure`);
+            // Don't replace with demo data - this preserves googleApiVerified: true
           }
           
           categoryResults.push(result);
@@ -571,9 +624,24 @@ export class BulkAnalysisService {
         language
       });
 
+      // Filter for relevant keywords only
+      const relevantKeywords = this.filterRelevantKeywords(keywordMetrics, keywordList);
+      
       // Score and rank keywords
-      const scoredKeywords = keywordService.scoreKeywords(keywordMetrics);
+      const scoredKeywords = keywordService.scoreKeywords(relevantKeywords);
       const topKeywords = keywordService.getTopKeywords(scoredKeywords, 10);
+      
+      // Log keyword selection for debugging
+      logger.info(`Keyword selection for ${category.subSub}:`, {
+        inferredKeywords,
+        totalApiResults: keywordMetrics.length,
+        topScoredKeywords: topKeywords.slice(0, 3).map(k => ({
+          keyword: k.keyword,
+          score: k.score,
+          searches: k.metrics.avgMonthlySearches,
+          opportunity: k.opportunity
+        }))
+      });
 
       const keywordAnalysis: KeywordAnalysisResult[] = topKeywords.map(k => ({
         keyword: k.keyword,
@@ -729,8 +797,11 @@ export class BulkAnalysisService {
         language
       });
 
+      // Filter for relevant keywords only
+      const relevantKeywords = this.filterRelevantKeywords(keywordMetrics, keywordList);
+      
       // Score and rank keywords
-      const scoredKeywords = keywordService.scoreKeywords(keywordMetrics);
+      const scoredKeywords = keywordService.scoreKeywords(relevantKeywords);
       const topKeywords = keywordService.getTopKeywords(scoredKeywords, 20);
 
       const keywordAnalysis: KeywordAnalysisResult[] = topKeywords.map(k => ({

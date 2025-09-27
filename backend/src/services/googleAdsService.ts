@@ -1,4 +1,3 @@
-import axios, { AxiosInstance } from 'axios';
 import { logger } from '@/config/logger';
 import { config } from '@/config';
 
@@ -17,70 +16,32 @@ export interface KeywordPlanRequest {
 }
 
 export class GoogleAdsService {
-  private client: AxiosInstance;
   private accessToken: string | null = null;
 
   constructor() {
-    this.client = axios.create({
-      baseURL: 'https://googleads.googleapis.com/v16',
+    // No need for axios client - we'll use fetch directly like the working implementation
+  }
+
+  private async getGoogleAdsAccessToken(): Promise<string> {
+    const response = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'developer-token': config.googleAds.developerToken,
+        'Content-Type': 'application/x-www-form-urlencoded'
       },
-    });
-
-    this.setupInterceptors();
-  }
-
-  private setupInterceptors() {
-    // Request interceptor to add access token
-    this.client.interceptors.request.use(async (config) => {
-      if (!this.accessToken) {
-        await this.refreshAccessToken();
-      }
-      
-      if (this.accessToken) {
-        config.headers.Authorization = `Bearer ${this.accessToken}`;
-      }
-      
-      return config;
-    });
-
-    // Response interceptor to handle token refresh
-    this.client.interceptors.response.use(
-      (response) => response,
-      async (error) => {
-        if (error.response?.status === 401 && this.accessToken) {
-          logger.info('Access token expired, refreshing...');
-          await this.refreshAccessToken();
-          
-          // Retry the original request
-          if (this.accessToken) {
-            error.config.headers.Authorization = `Bearer ${this.accessToken}`;
-            return this.client.request(error.config);
-          }
-        }
-        
-        return Promise.reject(error);
-      }
-    );
-  }
-
-  private async refreshAccessToken(): Promise<void> {
-    try {
-      const response = await axios.post('https://oauth2.googleapis.com/token', {
+      body: new URLSearchParams({
         client_id: config.googleAds.clientId,
         client_secret: config.googleAds.clientSecret,
         refresh_token: config.googleAds.refreshToken,
-        grant_type: 'refresh_token',
-      });
+        grant_type: 'refresh_token'
+      })
+    });
 
-      this.accessToken = response.data.access_token;
-      logger.info('Google Ads access token refreshed successfully');
-    } catch (error) {
-      logger.error('Failed to refresh Google Ads access token:', error);
-      throw new Error('Failed to authenticate with Google Ads API');
+    if (!response.ok) {
+      throw new Error('Failed to get access token');
     }
+
+    const data = await response.json() as { access_token: string };
+    return data.access_token;
   }
 
   /**
@@ -88,23 +49,49 @@ export class GoogleAdsService {
    */
   async getKeywordMetrics(request: KeywordPlanRequest): Promise<KeywordMetrics[]> {
     try {
-      const response = await this.client.post('/customers/me/keywordPlanIdeaService:generateKeywordIdeas', {
-        customerId: config.googleAds.customerId,
-        language: request.language,
-        geoTargetConstants: [`geoTargetConstants/${request.country}`],
-        keywordSeed: {
-          keywords: request.keywords,
+      // Get access token
+      const accessToken = await this.getGoogleAdsAccessToken();
+      
+      // Make request to Google Ads API using the working implementation pattern
+      const customerId = config.googleAds.customerId.replace(/-/g, '');
+      const response = await fetch(`https://googleads.googleapis.com/v21/customers/${customerId}:generateKeywordIdeas`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'developer-token': config.googleAds.developerToken
         },
-        keywordAndUrlSeed: {
-          keywords: request.keywords,
-        },
-        includeAdultKeywords: false,
-        pageSize: 1000,
+        body: JSON.stringify({
+          language: this.getLanguageConstant(request.language),
+          geoTargetConstants: [`geoTargetConstants/${this.getCountryCode(request.country)}`],
+          keywordSeed: {
+            keywords: request.keywords,
+          },
+          includeAdultKeywords: false,
+          pageSize: 1000,
+          historicalMetricsOptions: {
+            yearMonthRange: {
+              start: this.getLastMonthDate(),
+              end: this.getLastMonthDate()
+            }
+          }
+        })
       });
 
-      const keywords = response.data.results || [];
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.error('Google Ads API error details:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorBody: errorText
+        });
+        throw new Error(`Google Ads API error: ${response.status} - ${errorText}`);
+      }
+
+      const data = await response.json() as { results?: any[] };
+      const results = data.results || [];
       
-      return keywords.map((result: any) => ({
+      return results.map((result: any) => ({
         keyword: result.text,
         avgMonthlySearches: result.keywordIdeaMetrics?.avgMonthlySearches || 0,
         competition: this.mapCompetitionLevel(result.keywordIdeaMetrics?.competition),
@@ -115,39 +102,9 @@ export class GoogleAdsService {
     } catch (error: any) {
       logger.error('Failed to get keyword metrics from Google Ads:', {
         message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
+        stack: error.stack,
       });
       throw new Error('Failed to fetch keyword data from Google Ads API');
-    }
-  }
-
-  /**
-   * Get keyword suggestions based on seed keywords
-   */
-  async getKeywordSuggestions(seedKeywords: string[], country: string = 'US'): Promise<string[]> {
-    try {
-      const response = await this.client.post('/customers/me/keywordPlanIdeaService:generateKeywordIdeas', {
-        customerId: config.googleAds.customerId,
-        language: 'en',
-        geoTargetConstants: [`geoTargetConstants/${country}`],
-        keywordSeed: {
-          keywords: seedKeywords,
-        },
-        includeAdultKeywords: false,
-        pageSize: 1000,
-      });
-
-      const keywords = response.data.results || [];
-      return keywords.map((result: any) => result.text);
-
-    } catch (error: any) {
-      logger.error('Failed to get keyword suggestions from Google Ads:', {
-        message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
-      });
-      throw new Error('Failed to fetch keyword suggestions from Google Ads API');
     }
   }
 
@@ -156,13 +113,11 @@ export class GoogleAdsService {
    */
   async healthCheck(): Promise<boolean> {
     try {
-      await this.refreshAccessToken();
-      return !!this.accessToken;
+      await this.getGoogleAdsAccessToken();
+      return true;
     } catch (error: any) {
       logger.error('Google Ads API health check failed:', {
         message: error.message,
-        status: error.response?.status,
-        data: error.response?.data,
       });
       return false;
     }
@@ -182,6 +137,56 @@ export class GoogleAdsService {
   private convertMicrosToCurrency(micros: number | undefined): number {
     if (!micros) return 0;
     return micros / 1000000; // Convert micros to currency units
+  }
+
+  private getLastMonthDate(): { year: number; month: number } {
+    const now = new Date();
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    
+    return {
+      year: lastMonth.getFullYear(),
+      month: lastMonth.getMonth() + 1 // Google Ads API uses 1-based months
+    };
+  }
+
+  private getLanguageConstant(language: string): string {
+    const languageMapping: { [key: string]: string } = {
+      'en': 'languageConstants/1000', // English
+      'fr': 'languageConstants/1002', // French
+      'es': 'languageConstants/1003', // Spanish
+      'de': 'languageConstants/1001', // German
+      'it': 'languageConstants/1004', // Italian
+      'pt': 'languageConstants/1014', // Portuguese
+      'ja': 'languageConstants/1005', // Japanese
+      'zh': 'languageConstants/1017', // Chinese
+    };
+    
+    return languageMapping[language.toLowerCase()] || 'languageConstants/1000'; // Default to English
+  }
+
+  private getCountryCode(country: string): string {
+    const countryMapping: { [key: string]: string } = {
+      'US': '2840', // United States
+      'CA': '2124', // Canada
+      'GB': '2826', // United Kingdom
+      'AU': '2036', // Australia
+      'DE': '276',  // Germany
+      'FR': '250',  // France
+      'IT': '380',  // Italy
+      'ES': '724',  // Spain
+      'NL': '528',  // Netherlands
+      'SE': '752',  // Sweden
+      'NO': '578',  // Norway
+      'DK': '208',  // Denmark
+      'FI': '246',  // Finland
+      'JP': '392',  // Japan
+      'CN': '156',  // China
+      'IN': '356',  // India
+      'BR': '76',   // Brazil
+      'MX': '484',  // Mexico
+    };
+    
+    return countryMapping[country.toUpperCase()] || '2840'; // Default to US
   }
 }
 

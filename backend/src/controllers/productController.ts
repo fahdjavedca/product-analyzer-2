@@ -3,6 +3,7 @@ import { prisma } from '@/config/database';
 import { productImportService, ImportProductRequest } from '@/services/productImportService';
 import { keywordService } from '@/services/keywordService';
 import { cjDropshippingService } from '@/services/cjDropshippingService';
+import { bulkAnalysisService, BulkAnalysisRequest } from '@/services/bulkAnalysisService';
 import { logger } from '@/config/logger';
 import { asyncHandler } from '@/middleware/errorHandler';
 
@@ -619,6 +620,142 @@ Example format: "wireless bluetooth headphones, noise cancelling earbuds, premiu
       return res.status(500).json({
         success: false,
         error: 'Failed to generate keywords',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }),
+
+  /**
+   * Run bulk AliExpress keyword analysis
+   */
+  runBulkAnalysis: asyncHandler(async (req: Request, res: Response) => {
+    const { maxCategories = 3, country = 'US', language = 'en', includeProductTitles = true } = req.body;
+
+    try {
+      const result = await bulkAnalysisService.runBulkAnalysis({
+        maxCategories,
+        country,
+        language,
+        includeProductTitles
+      });
+
+      return res.json({
+        success: true,
+        data: result
+      });
+
+    } catch (error) {
+      logger.error('Bulk analysis failed:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Bulk analysis failed',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }),
+
+  /**
+   * Download bulk analysis spreadsheet
+   */
+  downloadBulkAnalysis: asyncHandler(async (req: Request, res: Response) => {
+    const { maxCategories = 3, country = 'US', language = 'en', includeProductTitles = true } = req.body;
+
+    try {
+      const result = await bulkAnalysisService.runBulkAnalysis({
+        maxCategories,
+        country,
+        language,
+        includeProductTitles
+      });
+
+      if (!result.spreadsheetBuffer) {
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to generate spreadsheet'
+        });
+      }
+
+      const filename = `aliexpress-keyword-analysis-${country}-${new Date().toISOString().split('T')[0]}.xlsx`;
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.send(result.spreadsheetBuffer);
+
+    } catch (error) {
+      logger.error('Bulk analysis download failed:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Bulk analysis download failed',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }),
+
+  /**
+   * Analyze custom product titles
+   */
+  analyzeCustomTitles: asyncHandler(async (req: Request, res: Response) => {
+    const { titles, country = 'US', language = 'en' } = req.body;
+
+    if (!titles || !Array.isArray(titles) || titles.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Product titles array is required'
+      });
+    }
+
+    try {
+      const result = await bulkAnalysisService.analyzeCustomTitles(titles, country, language);
+
+      return res.json({
+        success: true,
+        data: result
+      });
+
+    } catch (error) {
+      logger.error('Custom title analysis failed:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Custom title analysis failed',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  }),
+
+  /**
+   * Download custom title analysis spreadsheet
+   */
+  downloadCustomAnalysis: asyncHandler(async (req: Request, res: Response) => {
+    const { titles, country = 'US', language = 'en' } = req.body;
+
+    if (!titles || !Array.isArray(titles) || titles.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Product titles array is required'
+      });
+    }
+
+    try {
+      const result = await bulkAnalysisService.analyzeCustomTitles(titles, country, language);
+
+      if (!result.spreadsheetBuffer) {
+        return res.status(500).json({
+          success: false,
+          error: 'Failed to generate spreadsheet'
+        });
+      }
+
+      const filename = `custom-keyword-analysis-${country}-${new Date().toISOString().split('T')[0]}.xlsx`;
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      return res.send(result.spreadsheetBuffer);
+
+    } catch (error) {
+      logger.error('Custom analysis download failed:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Custom analysis download failed',
         details: error instanceof Error ? error.message : 'Unknown error'
       });
     }

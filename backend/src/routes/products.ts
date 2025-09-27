@@ -29,4 +29,10 @@ router.get('/cj/category/:categoryId', productController.getCJProductsByCategory
 // Generate intelligent keywords using OpenAI
 router.post('/generate-keywords', productController.generateIntelligentKeywords);
 
+// Bulk analysis routes
+router.post('/bulk-analysis', productController.runBulkAnalysis);
+router.post('/bulk-analysis/download', productController.downloadBulkAnalysis);
+router.post('/custom-analysis', productController.analyzeCustomTitles);
+router.post('/custom-analysis/download', productController.downloadCustomAnalysis);
+
 export default router;

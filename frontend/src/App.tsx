@@ -9,6 +9,7 @@ import CampaignsPage from '@/pages/CampaignsPage';
 import SettingsPage from '@/pages/SettingsPage';
 import LoginPage from '@/pages/LoginPage';
 import NotFoundPage from '@/pages/NotFoundPage';
+import BulkAnalysisPage from '@/pages/BulkAnalysisPage';
 
 function App() {
   return (
@@ -25,6 +26,7 @@ function App() {
           <Route index element={<HomePage />} />
           <Route path="products" element={<ProductsPage />} />
           <Route path="products/:id" element={<ProductDetailPage />} />
+          <Route path="bulk-analysis" element={<BulkAnalysisPage />} />
           <Route path="campaigns" element={<CampaignsPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>

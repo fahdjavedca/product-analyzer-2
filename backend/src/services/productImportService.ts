@@ -1,6 +1,6 @@
 import { prisma } from '@/config/database';
 import { cjDropshippingService, CJProduct } from './cjDropshippingService';
-import { aliExpressService, AliExpressProduct } from './aliexpressService';
+import { aliexpressService, AliExpressProduct } from './aliexpressService';
 import { keywordService } from './keywordService';
 import { logger } from '@/config/logger';
 
@@ -138,15 +138,15 @@ export class ProductImportService {
   ) {
     return await prisma.product.create({
       data: {
-        sourcePlatform: product.vendorName === 'CJ Dropshipping' ? 'cj_dropshipping' : 'aliexpress',
+        sourcePlatform: 'vendorName' in product && product.vendorName === 'CJ Dropshipping' ? 'cj_dropshipping' : 'aliexpress',
         sourceProductId: product.id,
         title: product.title,
         descriptionRaw: product.description,
-        price: product.price,
-        currency: product.currency,
-        vendorName: product.vendorName,
+        price: product.price || 0,
+        currency: product.currency || 'USD',
+        vendorName: 'vendorName' in product ? product.vendorName : 'AliExpress',
         categoryPath: product.categoryPath || [],
-        images: product.images,
+        images: product.images || [],
         shippingOptions: {
           create: shippingInfo.map(info => ({
             destinationCountry: info.destinationCountry,
